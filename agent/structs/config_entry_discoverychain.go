@@ -253,16 +253,21 @@ func (e *ServiceSplitterConfigEntry) Normalize() error {
 	// weight is 1/10000 or .01%
 
 	if len(e.Splits) > 0 {
-		sumScaled := 0
+		// sumScaled := 0
 		for i, split := range e.Splits {
-			weightScaled := scaleWeight(split.Weight)
-			e.Splits[i].Weight = float32(float32(weightScaled) / 100.0)
-
-			sumScaled += weightScaled
+			// weightScaled := scaleWeight(split.Weight)
+			// e.Splits[i].Weight = float32(float32(weightScaled) / 100.0)
+			e.Splits[i].Weight = NormalizeServiceSplitWeight(split.Weight)
+			// sumScaled += weightScaled
 		}
 	}
 
 	return nil
+}
+
+func NormalizeServiceSplitWeight(weight float32) float32 {
+	weightScaled := scaleWeight(weight)
+	return float32(float32(weightScaled) / 100.0)
 }
 
 func (e *ServiceSplitterConfigEntry) Validate() error {
@@ -439,6 +444,14 @@ type ServiceResolverConfigEntry struct {
 	ConnectTimeout time.Duration `json:",omitempty"`
 
 	RaftIndex
+}
+
+func (e *ServiceResolverConfigEntry) IsDefault() bool {
+	return e.DefaultSubset == "" &&
+		len(e.Subsets) == 0 &&
+		e.Redirect == nil &&
+		len(e.Failover) == 0 &&
+		e.ConnectTimeout == 0
 }
 
 func (e *ServiceResolverConfigEntry) GetKind() string {
@@ -743,4 +756,67 @@ func canWriteDiscoveryChain(entry discoveryChainConfigEntry, rule acl.Authorizer
 		}
 	}
 	return true
+}
+
+// DiscoveryChainConfigEntries wraps just the raw cross-referenced config
+// entries. None of these are defaulted.
+type DiscoveryChainConfigEntries struct {
+	Routers   map[string]*ServiceRouterConfigEntry
+	Splitters map[string]*ServiceSplitterConfigEntry
+	Resolvers map[string]*ServiceResolverConfigEntry
+}
+
+func (e *DiscoveryChainConfigEntries) GetRouter(name string) *ServiceRouterConfigEntry {
+	if e.Routers != nil {
+		return e.Routers[name]
+	}
+	return nil
+}
+
+func (e *DiscoveryChainConfigEntries) GetSplitter(name string) *ServiceSplitterConfigEntry {
+	if e.Splitters != nil {
+		return e.Splitters[name]
+	}
+	return nil
+}
+
+func (e *DiscoveryChainConfigEntries) GetResolver(name string) *ServiceResolverConfigEntry {
+	if e.Resolvers != nil {
+		return e.Resolvers[name]
+	}
+	return nil
+}
+
+// AddRouters adds router configs. Convenience function for testing.
+func (e *DiscoveryChainConfigEntries) AddRouters(entries ...*ServiceRouterConfigEntry) {
+	if e.Routers == nil {
+		e.Routers = make(map[string]*ServiceRouterConfigEntry)
+	}
+	for _, entry := range entries {
+		e.Routers[entry.Name] = entry
+	}
+}
+
+// AddSplitters adds splitter configs. Convenience function for testing.
+func (e *DiscoveryChainConfigEntries) AddSplitters(entries ...*ServiceSplitterConfigEntry) {
+	if e.Splitters == nil {
+		e.Splitters = make(map[string]*ServiceSplitterConfigEntry)
+	}
+	for _, entry := range entries {
+		e.Splitters[entry.Name] = entry
+	}
+}
+
+// AddResolvers adds resolver configs. Convenience function for testing.
+func (e *DiscoveryChainConfigEntries) AddResolvers(entries ...*ServiceResolverConfigEntry) {
+	if e.Resolvers == nil {
+		e.Resolvers = make(map[string]*ServiceResolverConfigEntry)
+	}
+	for _, entry := range entries {
+		e.Resolvers[entry.Name] = entry
+	}
+}
+
+func (e *DiscoveryChainConfigEntries) IsEmpty() bool {
+	return len(e.Routers) == 0 && len(e.Splitters) == 0 && len(e.Resolvers) == 0
 }

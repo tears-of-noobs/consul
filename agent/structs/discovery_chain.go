@@ -57,8 +57,7 @@ type DiscoveryGroupResolver struct {
 	Definition *ServiceResolverConfigEntry `json:",omitempty"`
 	Default    bool                        `json:",omitempty"`
 	// Node should be of Type==catalog-query and is used in the happy path.
-	Node *DiscoveryNode `json:",omitempty"`
-	// Target   DiscoveryTarget    `json:",omitempty"` // happy path
+	Node     *DiscoveryNode     `json:",omitempty"`
 	Failover *DiscoveryFailover `json:",omitempty"` // sad path
 }
 

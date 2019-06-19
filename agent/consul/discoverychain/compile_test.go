@@ -46,6 +46,7 @@ func TestCompile(t *testing.T) {
 		"resolver with default subset":                     testcase_Resolve_WithDefaultSubset(),
 		// TODO: handle this case better: "circular split":                                   testcase_CircularSplit(),
 		"all the bells and whistles": testcase_AllBellsAndWhistles(),
+		"multi dc canary":            testcase_MultiDatacenterCanary(),
 	}
 
 	for name, tc := range cases {
@@ -1220,6 +1221,96 @@ func testcase_CircularSplit() compileTestCase {
 		},
 		GroupResolverNodes: map[structs.DiscoveryTarget]*structs.DiscoveryNode{
 			newTarget("main", "v2", "default", "dc1"): nil,
+		},
+	}
+	return compileTestCase{entries: entries, expect: expect}
+}
+
+func testcase_MultiDatacenterCanary() compileTestCase {
+	entries := newEntries()
+	entries.AddSplitters(
+		&structs.ServiceSplitterConfigEntry{
+			Kind: "service-splitter",
+			Name: "main",
+			Splits: []structs.ServiceSplit{
+				{Weight: 60, Service: "main-dc2"},
+				{Weight: 40, Service: "main-dc3"},
+			},
+		},
+	)
+	entries.AddResolvers(
+		&structs.ServiceResolverConfigEntry{
+			Kind: "service-resolver",
+			Name: "main-dc2",
+			Redirect: &structs.ServiceResolverRedirect{
+				Service:    "main",
+				Datacenter: "dc2",
+			},
+		},
+		&structs.ServiceResolverConfigEntry{
+			Kind: "service-resolver",
+			Name: "main-dc3",
+			Redirect: &structs.ServiceResolverRedirect{
+				Service:    "main",
+				Datacenter: "dc3",
+			},
+		},
+		&structs.ServiceResolverConfigEntry{
+			Kind:           "service-resolver",
+			Name:           "main",
+			ConnectTimeout: 33 * time.Second,
+		},
+	)
+
+	resolver := entries.GetResolver("main")
+
+	expect := &structs.CompiledDiscoveryChain{
+		Node: &structs.DiscoveryNode{
+			Type: structs.DiscoveryNodeTypeSplitter,
+			Name: "main",
+			Splits: []*structs.DiscoverySplit{
+				{
+					Weight: 60,
+					Node: &structs.DiscoveryNode{
+						Type: structs.DiscoveryNodeTypeGroupResolver,
+						Name: "main",
+						GroupResolver: &structs.DiscoveryGroupResolver{
+							Definition: resolver,
+							Node: &structs.DiscoveryNode{
+								Type:          structs.DiscoveryNodeTypeCatalogQuery,
+								Name:          "main",
+								CatalogTarget: newTarget("main", "", "default", "dc2"),
+							},
+						},
+					},
+				},
+				{
+					Weight: 40,
+					Node: &structs.DiscoveryNode{
+						Type: structs.DiscoveryNodeTypeGroupResolver,
+						Name: "main",
+						GroupResolver: &structs.DiscoveryGroupResolver{
+							Definition: resolver,
+							Node: &structs.DiscoveryNode{
+								Type:          structs.DiscoveryNodeTypeCatalogQuery,
+								Name:          "main",
+								CatalogTarget: newTarget("main", "", "default", "dc3"),
+							},
+						},
+					},
+				},
+			},
+		},
+		Resolvers: map[string]*structs.ServiceResolverConfigEntry{
+			"main": resolver,
+		},
+		Targets: []structs.DiscoveryTarget{
+			newTarget("main", "", "default", "dc2"),
+			newTarget("main", "", "default", "dc3"),
+		},
+		GroupResolverNodes: map[structs.DiscoveryTarget]*structs.DiscoveryNode{
+			newTarget("main", "", "default", "dc2"): nil,
+			newTarget("main", "", "default", "dc3"): nil,
 		},
 	}
 	return compileTestCase{entries: entries, expect: expect}

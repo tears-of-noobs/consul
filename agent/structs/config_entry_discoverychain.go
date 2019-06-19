@@ -253,12 +253,8 @@ func (e *ServiceSplitterConfigEntry) Normalize() error {
 	// weight is 1/10000 or .01%
 
 	if len(e.Splits) > 0 {
-		// sumScaled := 0
 		for i, split := range e.Splits {
-			// weightScaled := scaleWeight(split.Weight)
-			// e.Splits[i].Weight = float32(float32(weightScaled) / 100.0)
 			e.Splits[i].Weight = NormalizeServiceSplitWeight(split.Weight)
-			// sumScaled += weightScaled
 		}
 	}
 

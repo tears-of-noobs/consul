@@ -21,6 +21,7 @@ references:
     GIT_AUTHOR_NAME: circleci-consul
     GIT_COMMITTER_NAME: circleci-consul
     S3_ARTIFACT_BUCKET:  consul-dev-artifacts
+    BASH_ENV: ./build-support/scripts/functions.sh
 
 jobs:
   # Runs go fmt and go vet
@@ -52,6 +53,29 @@ jobs:
     environment:
       <<: *ENVIRONMENT
 
+  # checks vendor directory is correct
+  check-vendor:
+    docker:
+      - image: *GOLANG_IMAGE
+    environment:
+      <<: *ENVIRONMENT
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+          - consul-modcache-v1-{{ checksum "go.mod" }}
+      - run:
+          command: make update-vendor
+      - save_cache:
+          key: consul-modcache-v1-{{ checksum "go.mod" }}
+          paths:
+          - /go/pkg/mod
+      - run: |
+          if ! is_git_clean .; then
+            echo "Git directory has vendor changes"
+            git status
+            exit 1
+          fi
   go-test:
     docker:
       - image: *GOLANG_IMAGE
@@ -445,7 +469,10 @@ workflows:
   version: 2
   build-distros:
     jobs:
-      - go-fmt-and-vet
+      - check-vendor
+      - go-fmt-and-vet:
+          requires:
+            - check-vendor
       - build-386: &require-go-fmt-vet
           requires:
             - go-fmt-and-vet

@@ -70,12 +70,14 @@ jobs:
           key: consul-modcache-v1-{{ checksum "go.mod" }}
           paths:
           - /go/pkg/mod
-      - run: |
-          if ! is_git_clean .; then
-            echo "Git directory has vendor changes"
-            git status
-            exit 1
-          fi
+      - run:
+          name: check for git changes
+          command: |
+            if ! is_git_clean .; then
+              echo "Git directory has vendor changes"
+              git status
+              exit 1
+            fi
   go-test:
     docker:
       - image: *GOLANG_IMAGE

@@ -141,31 +141,39 @@ func (c *compiler) detectCircularResolves() error {
 }
 
 func (c *compiler) mergeSerialSplitters() {
-	for _, splitterNode := range c.splitterNodes {
-		fixedSplits := make([]*structs.DiscoverySplit, 0, len(splitterNode.Splits))
-		changed := false
-		for _, split := range splitterNode.Splits {
-			if split.Node.Type != structs.DiscoveryNodeTypeSplitter {
-				fixedSplits = append(fixedSplits, split)
-				continue
-			}
-
-			changed = true
-
-			for _, innerSplit := range split.Node.Splits {
-				effectiveWeight := split.Weight * innerSplit.Weight / 100
-
-				newDiscoverySplit := &structs.DiscoverySplit{
-					Weight: structs.NormalizeServiceSplitWeight(effectiveWeight),
-					Node:   innerSplit.Node,
+	for {
+		anyChanged := false
+		for _, splitterNode := range c.splitterNodes {
+			fixedSplits := make([]*structs.DiscoverySplit, 0, len(splitterNode.Splits))
+			changed := false
+			for _, split := range splitterNode.Splits {
+				if split.Node.Type != structs.DiscoveryNodeTypeSplitter {
+					fixedSplits = append(fixedSplits, split)
+					continue
 				}
 
-				fixedSplits = append(fixedSplits, newDiscoverySplit)
+				changed = true
+
+				for _, innerSplit := range split.Node.Splits {
+					effectiveWeight := split.Weight * innerSplit.Weight / 100
+
+					newDiscoverySplit := &structs.DiscoverySplit{
+						Weight: structs.NormalizeServiceSplitWeight(effectiveWeight),
+						Node:   innerSplit.Node,
+					}
+
+					fixedSplits = append(fixedSplits, newDiscoverySplit)
+				}
 			}
 
+			if changed {
+				splitterNode.Splits = fixedSplits
+				anyChanged = true
+			}
 		}
-		if changed {
-			splitterNode.Splits = fixedSplits
+
+		if !anyChanged {
+			return
 		}
 	}
 }

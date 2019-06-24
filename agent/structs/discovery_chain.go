@@ -20,7 +20,9 @@ type CompiledDiscoveryChain struct {
 
 	// GroupResolverNodes respresents all unique service instance groups that
 	// need to be represented. For envoy these render as Clusters.
-	GroupResolverNodes map[DiscoveryTarget]*DiscoveryNode `json:",omitempty"`
+	//
+	// Omitted from JSON because DiscoveryTarget is not a encoding.TextMarshaler.
+	GroupResolverNodes map[DiscoveryTarget]*DiscoveryNode `json:"-"`
 
 	// TODO(rb): not sure if these two fields are actually necessary but I'll know when I get into xDS
 	Resolvers map[string]*ServiceResolverConfigEntry `json:",omitempty"`
